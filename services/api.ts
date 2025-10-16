@@ -2,7 +2,7 @@ import { Party } from '../types';
 
 // --- Configuration ---
 // Set this flag to true to use the backend API, or false for localStorage.
-const USE_BACKEND_API = false;
+const USE_BACKEND_API = true;
 const API_URL = 'http://localhost:5001/api';
 const API_LATENCY = 500; // ms, for simulating network delay with localStorage
 
@@ -92,18 +92,11 @@ const localStorageApi = {
 
 // --- Backend API Implementation ---
 
-// Helper to map Mongo's _id to our id, ensuring type safety
-const mapMongoParty = (party: any): Party => {
-  const { _id, ...rest } = party;
-  return { id: _id, ...rest } as Party;
-};
-
 const backendApi = {
   getParties: async (): Promise<Party[]> => {
     const response = await fetch(`${API_URL}/parties`);
     if (!response.ok) throw new Error('Failed to fetch parties');
-    const data = await response.json();
-    return data.map(mapMongoParty);
+    return response.json();
   },
 
   getParty: async (id: string): Promise<Party | null> => {
@@ -112,8 +105,7 @@ const backendApi = {
         if (response.status === 404) return null;
         throw new Error('Failed to fetch party');
     }
-    const data = await response.json();
-    return mapMongoParty(data);
+    return response.json();
   },
 
   createParty: async (partyData: Omit<Party, 'id' | 'friends' | 'tasks' | 'expenses'>): Promise<Party> => {
@@ -123,7 +115,6 @@ const backendApi = {
       body: JSON.stringify(partyData),
     });
     if (!response.ok) throw new Error('Failed to create party');
-    // Assuming backend returns the created party with a correct `id` field
     return await response.json();
   },
 
@@ -134,7 +125,6 @@ const backendApi = {
       body: JSON.stringify(updatedParty),
     });
     if (!response.ok) throw new Error('Failed to update party');
-    // Assuming backend returns the updated party with a correct `id` field
     return await response.json();
   },
 
