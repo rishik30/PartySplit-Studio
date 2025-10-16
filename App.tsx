@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import HomePage from './components/HomePage';
 import PartyPage from './components/PartyPage';
@@ -56,8 +57,8 @@ const App: React.FC = () => {
             <HomePage
               parties={parties}
               onSelectParty={handleSelectParty}
-              // FIX: Wrap addParty to match the expected Promise<void> return type.
-              onAddParty={async (party) => { await addParty(party); }}
+              // FIX: Pass addParty directly, as it returns Promise<Party> which matches the expected prop type.
+              onAddParty={addParty}
               onDeleteParty={deleteParty}
             />
           </motion.div>

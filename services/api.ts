@@ -1,6 +1,12 @@
 import { Party } from '../types';
 
-const API_LATENCY = 500; // ms
+// --- Configuration ---
+// Set this flag to true to use the backend API, or false for localStorage.
+const USE_BACKEND_API = false;
+const API_URL = 'http://localhost:5001/api';
+const API_LATENCY = 500; // ms, for simulating network delay with localStorage
+
+// --- Local Storage Implementation ---
 
 const getPartiesFromStorage = (): Party[] => {
   try {
@@ -16,15 +22,16 @@ const savePartiesToStorage = (parties: Party[]) => {
   localStorage.setItem('parties', JSON.stringify(parties));
 };
 
-export const getParties = (): Promise<Party[]> => {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      resolve(getPartiesFromStorage());
-    }, API_LATENCY);
-  });
-};
+const localStorageApi = {
+  getParties: (): Promise<Party[]> => {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        resolve(getPartiesFromStorage());
+      }, API_LATENCY);
+    });
+  },
 
-export const getParty = (id: string): Promise<Party | null> => {
+  getParty: (id: string): Promise<Party | null> => {
      return new Promise(resolve => {
         setTimeout(() => {
             const parties = getPartiesFromStorage();
@@ -32,9 +39,9 @@ export const getParty = (id: string): Promise<Party | null> => {
             resolve(party);
         }, API_LATENCY);
     });
-}
+  },
 
-export const createParty = (partyData: Omit<Party, 'id' | 'friends' | 'tasks' | 'expenses'>): Promise<Party> => {
+  createParty: (partyData: Omit<Party, 'id' | 'friends' | 'tasks' | 'expenses'>): Promise<Party> => {
     return new Promise(resolve => {
         setTimeout(() => {
             const parties = getPartiesFromStorage();
@@ -49,9 +56,9 @@ export const createParty = (partyData: Omit<Party, 'id' | 'friends' | 'tasks' | 
             resolve(newParty);
         }, API_LATENCY);
     });
-};
+  },
 
-export const updateParty = (updatedParty: Party): Promise<Party> => {
+  updateParty: (updatedParty: Party): Promise<Party> => {
     return new Promise((resolve, reject) => {
         setTimeout(() => {
             if (!updatedParty.id) {
@@ -69,9 +76,9 @@ export const updateParty = (updatedParty: Party): Promise<Party> => {
             resolve(updatedParty);
         }, API_LATENCY);
     });
-}
+  },
 
-export const deleteParty = (id: string): Promise<void> => {
+  deleteParty: (id: string): Promise<void> => {
     return new Promise(resolve => {
         setTimeout(() => {
             const parties = getPartiesFromStorage();
@@ -80,4 +87,70 @@ export const deleteParty = (id: string): Promise<void> => {
             resolve();
         }, API_LATENCY);
     });
-}
+  }
+};
+
+// --- Backend API Implementation ---
+
+// Helper to map Mongo's _id to our id, ensuring type safety
+const mapMongoParty = (party: any): Party => {
+  const { _id, ...rest } = party;
+  return { id: _id, ...rest } as Party;
+};
+
+const backendApi = {
+  getParties: async (): Promise<Party[]> => {
+    const response = await fetch(`${API_URL}/parties`);
+    if (!response.ok) throw new Error('Failed to fetch parties');
+    const data = await response.json();
+    return data.map(mapMongoParty);
+  },
+
+  getParty: async (id: string): Promise<Party | null> => {
+    const response = await fetch(`${API_URL}/parties/${id}`);
+    if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch party');
+    }
+    const data = await response.json();
+    return mapMongoParty(data);
+  },
+
+  createParty: async (partyData: Omit<Party, 'id' | 'friends' | 'tasks' | 'expenses'>): Promise<Party> => {
+    const response = await fetch(`${API_URL}/parties`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(partyData),
+    });
+    if (!response.ok) throw new Error('Failed to create party');
+    // Assuming backend returns the created party with a correct `id` field
+    return await response.json();
+  },
+
+  updateParty: async (updatedParty: Party): Promise<Party> => {
+    const response = await fetch(`${API_URL}/parties/${updatedParty.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedParty),
+    });
+    if (!response.ok) throw new Error('Failed to update party');
+    // Assuming backend returns the updated party with a correct `id` field
+    return await response.json();
+  },
+
+  deleteParty: async (id: string): Promise<void> => {
+    const response = await fetch(`${API_URL}/parties/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete party');
+  },
+};
+
+// --- Exported API ---
+// The application will use the functions from the implementation selected by the USE_BACKEND_API flag.
+
+export const getParties = USE_BACKEND_API ? backendApi.getParties : localStorageApi.getParties;
+export const getParty = USE_BACKEND_API ? backendApi.getParty : localStorageApi.getParty;
+export const createParty = USE_BACKEND_API ? backendApi.createParty : localStorageApi.createParty;
+export const updateParty = USE_BACKEND_API ? backendApi.updateParty : localStorageApi.updateParty;
+export const deleteParty = USE_BACKEND_API ? backendApi.deleteParty : localStorageApi.deleteParty;
